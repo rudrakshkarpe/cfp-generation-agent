@@ -1,4 +1,4 @@
-# KubeCon Talk RAG Application
+# Conference Agnostic CFP Generator Agent
 
 A comprehensive RAG (Retrieval-Augmented Generation) application that helps generate unique and compelling talk proposals for cloud-native conferences by combining historical KubeCon talk data with real-time web research.
 
