@@ -250,6 +250,9 @@ conference-talk-abstract-generator/
 │       └── prompts.py              # LLM prompt templates
 ```
 
+
+
+<!---
 ## 🔍 Technical Deep Dive
 
 ### Crawling Engine
@@ -315,7 +318,7 @@ python -c "from src.config.openrouter_client import OpenRouterClient; orc = Open
 - **Cleanup**: Automatic resource cleanup on application exit
 
 ## 🔮 Future Enhancements
-
+ß
 - [ ] **Multi-language Support**: International conference support
 - [ ] **Advanced Analytics**: Trend analysis and speaker recommendations
 - [ ] **API Interface**: REST API for programmatic access
@@ -343,6 +346,7 @@ For questions and support:
 - Review the Couchbase and OpenRouter documentation
 
 ---
+-->
 
 **Built with ❤️ for the Global Conference Community**
 
