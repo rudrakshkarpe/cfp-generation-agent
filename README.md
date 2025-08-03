@@ -1,269 +1,327 @@
-# Conference Agnostic CFP Generator Agent
+# Conference-Agnostic CFP Generation/RAG System
 
-A comprehensive RAG (Retrieval-Augmented Generation) application that helps generate unique and compelling talk proposals for cloud-native conferences by combining historical KubeCon talk data with real-time web research.
+A powerful, conference-agnostic RAG (Retrieval-Augmented Generation) application that automatically crawls any conference website, builds a searchable corpus, and generates unique talk proposals using real-time research and historical context.
+
+## ✨ Key Features
+
+- **🌐 Universal Conference Support**: Automatically crawls Sched.com, Sessionize.com, and generic conference websites
+- **⚡ Parallel Processing**: High-performance async crawling with rate limiting and batch processing
+- **🔍 Intelligent Search**: Vector search with automatic fallback to text-based similarity matching
+- **🔬 Real-time Research**: Integrates live web research using Exa and Tavily APIs
+- **🤖 Smart Proposals**: Generates unique talk proposals using Grok-2 and other advanced LLMs
+- **📊 Analytics Dashboard**: Conference statistics, category distributions, and corpus insights
+- **🎯 Multi-Platform**: Streamlit web interface with comprehensive conference management
 
 ## 🏗️ Architecture Overview
 
-This application follows a multi-stage pipeline to create a powerful talk suggestion system:
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   Streamlit     │    │   Conference     │    │   Real-time     │
+│   Interface     │───▶│   Crawler        │───▶│   Research      │
+│                 │    │                  │    │   (Exa/Tavily)  │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+         │                       │                       │
+         ▼                       ▼                       ▼
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   Couchbase     │    │   Vector Search  │    │   LLM Generation│
+│   Corpus        │◀───│   & Analytics    │───▶│   (OpenRouter)  │
+│   Management    │    │                  │    │                 │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+```
 
-1. **Data Collection** - Extract and crawl KubeCon talk URLs
-2. **Data Processing** - Parse and structure talk information
-3. **Vector Storage** - Generate embeddings and store in Couchbase
-4. **RAG Application** - Combine historical data with real-time research for intelligent suggestions
+## 🚀 Quick Start
 
-## 📋 Prerequisites
+### Prerequisites
 
 - Python 3.8+
 - Couchbase Server with Vector Search capabilities
-- OpenAI-compatible API access (Nebius AI)
-- Environment variables configured (see `.env` setup below)
+- API keys for OpenRouter, Exa, and Tavily (see Environment Setup)
 
-## 🚀 Complete Pipeline Flow
+### Installation
 
-### Step 1: URL Extraction (`extract_events.py`)
-
-**Purpose**: Extract all KubeCon talk URLs from conference schedule pages.
-
+1. **Clone the repository**
 ```bash
-# Save the KubeCon schedule HTML to a file, then run:
-python extract_events.py < schedule.html
+git clone <repository-url>
+cd conference-talk-abstract-generator
 ```
 
-**What it does**:
-- Parses HTML content from stdin
-- Extracts all event URLs with pattern `event/`
-- Merges with existing URLs in `event_urls.txt`
-- Outputs the count of new URLs discovered
-
-**Output**: `event_urls.txt` - Contains all unique talk URLs
-
-### Step 2: Talk Data Crawling (`couchbase_utils.py`)
-
-**Purpose**: Crawl individual talk pages and extract structured information.
-
+2. **Install dependencies**
 ```bash
-python couchbase_utils.py
+pip install -r requirements.txt
 ```
 
-**What it does**:
-- Reads URLs from `event_urls.txt`
-- Uses AsyncWebCrawler to fetch talk pages in batches
-- Extracts structured data:
-  - Title
-  - Description
-  - Speaker(s)
-  - Category
-  - Date
-  - Location
-- Stores directly to Couchbase with document keys like `talk_<event_id>`
-
-**Features**:
-- Batch processing (5 URLs at a time)
-- Error handling and retry logic
-- Progress tracking with success/failure counts
-- Automatic document key generation
-
-### Step 3: Alternative JSON Storage (`crawl_talks.py`)
-
-**Purpose**: Alternative approach to store pre-crawled talk data from JSON files.
-
+3. **Configure environment variables**
 ```bash
-python crawl_talks.py
+cp .env.example .env
+# Edit .env with your API keys and Couchbase credentials
 ```
 
-**What it does**:
-- Reads from `talk_results1.json`
-- Processes and stores talks in Couchbase
-- Handles document conflicts with upsert operations
-- Adds crawling timestamps
-
-**Use Case**: When you have pre-existing JSON data to import
-
-### Step 4: Embedding Generation (`embeddinggeneration.py`)
-
-**Purpose**: Generate vector embeddings for semantic search capabilities.
-
+4. **Run the application**
 ```bash
-python embeddinggeneration.py
+python main.py
 ```
 
-**What it does**:
-- Queries all documents from Couchbase
-- Combines title, description, and category into searchable text
-- Generates embeddings using `intfloat/e5-mistral-7b-instruct` model
-- Updates documents with embedding vectors
-- Enables vector search functionality
+The Streamlit interface will open at `http://localhost:8501`
 
-**Model**: Uses Nebius AI's embedding endpoint for high-quality vectors
+## 🔧 Environment Setup
 
-### Step 5: RAG Application (`talk_suggestions_app.py`)
-
-**Purpose**: Interactive Streamlit application for generating talk proposals.
-
-```bash
-streamlit run kubecon-talk-agent/talk_suggestions_app.py
-```
-
-**Core Features**:
-
-#### 🔍 **Dual-Context Architecture**
-1. **Historical Context**: Vector search through stored KubeCon talks
-2. **Real-time Context**: Web research via ADK (Agent Development Kit)
-
-#### 🧠 **Three-Stage Generation Process**
-1. **Research Phase**: ADK agent researches current trends
-2. **Retrieval Phase**: Vector search finds similar historical talks
-3. **Synthesis Phase**: LLM combines both contexts for unique proposals
-
-#### 💡 **Smart Proposal Generation**
-- Avoids duplicating existing talks
-- Incorporates latest industry trends
-- Focuses on end-user perspectives
-- Provides structured output with learning objectives
-
-## 🛠️ Environment Setup
-
-Create a `.env` file with the following variables:
+Create a `.env` file with the following configuration:
 
 ```env
 # Couchbase Configuration
 CB_CONNECTION_STRING=couchbase://your-cluster-url
 CB_USERNAME=your-username
 CB_PASSWORD=your-password
-CB_BUCKET=kubecon-talks
-CB_COLLECTION=talks
-CB_SEARCH_INDEX=kubecontalks
+CB_BUCKET=conferences
 
-# AI APIs
-NEBIUS_API_KEY=your-nebius-api-key
-NEBIUS_API_BASE=https://api.studio.nebius.com/v1/
-OPENAI_API_KEY=your-openai-key  # Optional fallback
+# OpenRouter (Primary LLM Provider)
+OPENROUTER_API_KEY=your-openrouter-api-key
+OPENROUTER_API_BASE=https://openrouter.ai/api/v1
+
+# Research APIs
+EXA_API_KEY=your-exa-api-key
+TAVILY_API_KEY=your-tavily-api-key
+
+# Optional: Fallback providers
+OPENAI_API_KEY=your-openai-key
 ```
+
+### Supported LLM Models
+
+The system supports various models through OpenRouter:
+- **Grok-2** (Primary recommendation)
+- **Claude 3.5 Sonnet**
+- **GPT-4 Turbo**
+- **Llama 3.1 405B**
+
+### Embedding Models
+
+- **intfloat/e5-mistral-7b-instruct** (4096 dimensions)
+- **BAAI/bge-large-en-v1.5** (1024 dimensions)
+- **text-embedding-ada-002** (1536 dimensions)
+
+## 📱 Using the Application
+
+### 1. Add a Conference
+
+1. Navigate to the **"Add Conference"** tab
+2. Enter any conference schedule URL:
+   - `https://kccncna2024.sched.com/`
+   - `https://sessionize.com/dotnetconf-2024/`
+   - Any conference website with a schedule
+3. Configure crawling options (batch size, rate limiting)
+4. Click **"Crawl Conference"**
+
+The system will:
+- Automatically detect the platform (Sched, Sessionize, etc.)
+- Extract conference metadata
+- Crawl all talk pages in parallel
+- Generate embeddings for vector search
+- Store everything in Couchbase
+
+### 2. Generate Talk Proposals
+
+1. Go to the **"Generate Proposal"** tab
+2. Select a stored conference
+3. Describe your talk idea
+4. Configure generation options:
+   - Number of similar talks to find
+   - Enable/disable real-time research
+   - Creativity level and response length
+5. Click **"Generate Talk Proposal"**
+
+The system will:
+- Research current trends (if enabled)
+- Find similar historical talks
+- Generate a unique, compelling proposal
+- Show all context used in generation
+
+### 3. View Analytics
+
+1. Visit the **"Analytics"** tab
+2. Select a conference to analyze
+3. View:
+   - Total talks and metadata
+   - Category distribution charts
+   - Technical details and embeddings info
+
+## 🛠️ Supported Conference Platforms
+
+### Sched.com
+- **Examples**: KubeCon, DockerCon, many tech conferences
+- **URL Pattern**: `*.sched.com`
+- **Features**: Full schedule parsing, speaker details, categories
+
+### Sessionize.com
+- **Examples**: .NET Conf, many Microsoft events
+- **URL Pattern**: `sessionize.com/*`
+- **Features**: API-based extraction, rich metadata
+
+### Generic Websites
+- **Examples**: Custom conference sites, WordPress events
+- **Detection**: HTML pattern analysis
+- **Features**: Best-effort extraction using BeautifulSoup
 
 ## 📊 Couchbase Setup
 
-### 1. Create Bucket and Collection
-```sql
--- Create bucket
-CREATE BUCKET `kubecon-talks`;
+### 1. Create Bucket and Collections
 
--- Create collection (if not using default)
-CREATE COLLECTION `kubecon-talks`.`_default`.`talks`;
+The system automatically creates collections as needed, but you can pre-create:
+
+```sql
+-- Create main bucket
+CREATE BUCKET `conferences`;
+
+-- Collections are auto-created as `talks_{conference_id}`
 ```
 
-### 2. Create Vector Search Index
+### 2. Vector Search Index
+
+Indexes are automatically created with optimal settings:
+
 ```json
 {
-  "name": "kubecontalks",
+  "name": "vector_search_talks_{conference_id}",
   "type": "fulltext-index",
   "params": {
     "mapping": {
-      "default_mapping": {
-        "enabled": false
-      },
-      "type_field": "_type",
       "types": {
-        "_default": {
-          "enabled": true,
-          "dynamic": true,
+        "_default.talks_{conference_id}": {
           "properties": {
             "embedding": {
-              "enabled": true,
-              "dynamic": false,
-              "fields": [
-                {
-                  "name": "embedding",
-                  "type": "vector",
-                  "dims": 4096,
-                  "similarity": "dot_product"
-                }
-              ]
+              "fields": [{
+                "name": "embedding",
+                "type": "vector",
+                "dims": 4096,
+                "similarity": "dot_product"
+              }]
             }
           }
         }
       }
     }
-  },
-  "sourceType": "gocbcore",
-  "sourceName": "kubecon-talks"
+  }
 }
 ```
 
-## 🎯 Usage Examples
+## 🎯 Example Use Cases
 
-### Basic Talk Proposal Generation
+### Technology Research
 ```
-Query: "OpenTelemetry distributed tracing in microservices"
-```
-
-The system will:
-1. Research current OpenTelemetry discussions online
-2. Find similar historical talks in the database
-3. Generate a unique proposal that builds on existing knowledge
-
-### Advanced Use Cases
-- **Emerging Technologies**: "WebAssembly in Kubernetes workloads"
-- **Implementation Stories**: "Migration from Prometheus to OpenTelemetry"
-- **Best Practices**: "Cost optimization strategies for multi-cloud Kubernetes"
-
-## 📁 File Structure
-
-```
-kubecontalksagent/
-├── extract_events.py          # URL extraction from HTML
-├── couchbase_utils.py         # Main crawling and storage logic
-├── crawl_talks.py            # JSON-to-Couchbase import
-├── embeddinggeneration.py     # Vector embedding generation
-├── kubecon-talk-agent/
-│   ├── talk_suggestions_app.py # Main Streamlit RAG app
-│   └── adk_research_agent.py   # Web research agent
-├── event_urls.txt            # Extracted URLs (generated)
-├── talk_results1.json        # Optional: pre-crawled data
-└── .env                      # Environment configuration
+Input: "Advanced OpenTelemetry patterns for distributed tracing"
+Output: Comprehensive proposal with current best practices and historical context
 ```
 
-## 🔧 Technical Details
+### Implementation Stories
+```
+Input: "Migrating from Prometheus to Grafana Cloud"
+Output: Real-world migration guide with lessons learned
+```
 
-### Vector Search Implementation
-- **Model**: `intfloat/e5-mistral-7b-instruct` (4096 dimensions)
-- **Similarity**: Dot product
-- **Search Strategy**: Combines text matching with vector similarity
+### Emerging Trends
+```
+Input: "WebAssembly in Kubernetes workloads"
+Output: Cutting-edge proposal combining latest research with practical applications
+```
 
-### Error Handling
-- Connection timeouts and retries
-- Graceful degradation when services are unavailable
-- Comprehensive logging and user feedback
+## 📁 Project Structure
 
-### Performance Optimizations
-- Batch processing for crawling
-- Connection pooling for Couchbase
-- Async operations where possible
-- Configurable timeouts
+```
+conference-talk-abstract-generator/
+├── main.py                          # Application entry point
+├── requirements.txt                 # Python dependencies
+├── .env.example                     # Environment template
+├── docker-compose.yml              # Optional Docker setup
+├── scripts/
+│   └── create_search_indexes.py    # Manual index creation utility
+├── src/
+│   ├── config/
+│   │   └── openrouter_client.py    # LLM client configuration
+│   ├── scrapers/
+│   │   ├── conference_detector.py  # Platform detection logic
+│   │   ├── platform_adapters.py    # Platform-specific parsers
+│   │   └── parallel_crawler.py     # Main crawling engine
+│   ├── models/
+│   │   └── corpus_manager.py       # Couchbase & vector operations
+│   ├── research/
+│   │   └── adk_research_agent.py   # Real-time research integration
+│   └── ui/
+│       ├── conference_talk_app.py  # Main Streamlit interface
+│       └── prompts.py              # LLM prompt templates
+```
 
-## 🚨 Common Issues & Solutions
+## 🔍 Technical Deep Dive
 
-### 1. Vector Search Not Working
-- Ensure the search index is created and built
-- Verify embedding dimensions match (4096)
-- Check Couchbase FTS service is running
+### Crawling Engine
 
-### 2. Slow Embedding Generation
-- Consider using a local embedding model
-- Implement caching for repeated queries
-- Use batch embedding generation
+- **Async Architecture**: Built on `aiohttp` and `asyncio` for maximum performance
+- **Rate Limiting**: Configurable delays between batches to respect website policies
+- **Error Handling**: Comprehensive retry logic and graceful degradation
+- **Platform Detection**: Smart algorithm to identify conference platforms
 
-### 3. Connection Timeouts
-- Increase timeout values in environment
-- Check network connectivity to Couchbase
-- Verify credentials and permissions
+### Vector Search
+
+- **Fallback Strategy**: Vector search → Text search → Random sampling
+- **Multiple Models**: Support for various embedding models and dimensions
+- **Similarity Metrics**: Dot product, cosine similarity, and text-based scoring
+
+### LLM Integration
+
+- **Provider Flexibility**: OpenRouter enables access to multiple LLM providers
+- **Structured Prompts**: Carefully crafted prompts for consistent, high-quality outputs
+- **Context Management**: Intelligent combination of research and historical data
+
+## 🐛 Troubleshooting
+
+### Vector Search Issues
+```bash
+# Check if search index exists
+python scripts/create_search_indexes.py list
+
+# Manually create index if needed
+python scripts/create_search_indexes.py create conference_id
+```
+
+### Connection Problems
+```bash
+# Test Couchbase connection
+python -c "from src.models.corpus_manager import ConferenceCorpusManager; cm = ConferenceCorpusManager()"
+
+# Verify API keys
+python -c "from src.config.openrouter_client import OpenRouterClient; orc = OpenRouterClient()"
+```
+
+### Crawling Failures
+- Check conference URL accessibility
+- Verify platform is supported
+- Review rate limiting settings
+- Check for JavaScript-heavy sites (may need different approach)
+
+## 🚀 Performance Optimization
+
+### Crawling Performance
+- **Batch Size**: Start with 10, increase for faster servers
+- **Rate Limiting**: 1-2 seconds between batches is usually safe
+- **Concurrent Requests**: Limited to prevent overwhelming conference sites
+
+### Search Performance
+- **Vector Indexes**: Ensure proper index creation and building
+- **Query Optimization**: Use specific keywords and categories
+- **Caching**: Results are cached within sessions
+
+### Memory Management
+- **Streaming**: Large datasets are processed in chunks
+- **Connection Pooling**: Efficient database connection reuse
+- **Cleanup**: Automatic resource cleanup on application exit
 
 ## 🔮 Future Enhancements
 
-- [ ] Support for multiple conference data sources
-- [ ] Real-time talk trend analysis
-- [ ] Speaker recommendation system
-- [ ] Integration with CFP (Call for Papers) platforms
-- [ ] Multi-language support for international conferences
+- [ ] **Multi-language Support**: International conference support
+- [ ] **Advanced Analytics**: Trend analysis and speaker recommendations
+- [ ] **API Interface**: REST API for programmatic access
+- [ ] **Real-time Notifications**: Alert for new conferences and talks
+- [ ] **Collaborative Features**: Team-based proposal management
+- [ ] **Export Features**: PDF, Word, and presentation format exports
 
 ## 📄 License
 
@@ -279,8 +337,13 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 📞 Support
 
-For questions and support, please open an issue in the GitHub repository or contact the maintainers.
+For questions and support:
+- Open an issue in the GitHub repository
+- Check the troubleshooting section above
+- Review the Couchbase and OpenRouter documentation
 
 ---
 
-**Built with ❤️ for the Cloud Native Community** 
+**Built with ❤️ for the Global Conference Community**
+
+Transform any conference's historical talks into your next great presentation idea!
