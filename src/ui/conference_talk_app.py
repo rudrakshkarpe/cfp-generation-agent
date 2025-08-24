@@ -16,7 +16,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from src.scrapers.parallel_crawler import crawl_single_conference
 from src.models.corpus_manager import ConferenceCorpusManager, store_crawled_conference
-from src.config.openrouter_client import OpenRouterClient
+from src.config.nebius_client import NebiusClient
 from src.research.adk_research_agent import run_adk_research
 from src.ui.prompts import create_talk_proposal_prompt, get_system_message
 
@@ -30,7 +30,7 @@ st.set_page_config(
 
 class ConferenceTalkApp:
     def __init__(self):
-        self.openrouter_client = OpenRouterClient()
+        self.nebius_client = NebiusClient()
         self.corpus_manager = None
         
         # Initialize session state
@@ -86,7 +86,7 @@ class ConferenceTalkApp:
     def show_environment_status(self):
         """Show environment configuration status"""
         required_vars = [
-            ("OpenRouter API", "OPENROUTER_API_KEY"),
+            ("Nebius AI API", "NEBIUS_API_KEY"),
             ("Exa API", "EXA_API_KEY"),
             ("Tavily API", "TAVILY_API_KEY"),
             ("Couchbase", "CB_CONNECTION_STRING")
@@ -113,7 +113,7 @@ class ConferenceTalkApp:
     
     def render_main_interface(self):
         """Render main application interface"""
-        st.title("🎤 Conference-Agnostic Talk RAG System")
+        st.title("🎤 Conference-Agnostic CFP Generation system")
         st.markdown("""
         This system automatically crawls any conference website, builds a searchable corpus, 
         and generates unique talk proposals using real-time research and historical context.
@@ -341,7 +341,7 @@ class ConferenceTalkApp:
                 )
                 
                 # Step 3: Generate final proposal
-                status_text.text("🤖 Generating talk proposal with Grok-4...")
+                status_text.text("🤖 Generating talk proposal with Nebius AI...")
                 progress_bar.progress(80)
                 
                 proposal = self.generate_final_proposal(
@@ -406,7 +406,7 @@ class ConferenceTalkApp:
                 {"role": "user", "content": prompt}
             ]
             
-            return self.openrouter_client.chat_completion(
+            return self.nebius_client.chat_completion(
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens

@@ -9,8 +9,10 @@ import sys
 import os
 from datetime import datetime, timedelta
 
-# Add the src directory to the path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
+# Add the project root directory to the path
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(script_dir)
+sys.path.append(project_root)
 
 from src.models.corpus_manager import ConferenceCorpusManager
 
