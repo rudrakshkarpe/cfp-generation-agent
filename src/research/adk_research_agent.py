@@ -9,15 +9,15 @@ import json
 from exa_py import Exa
 from tavily import TavilyClient
 
-# Use our clean OpenRouter client instead of Google ADK
-from ..config.openrouter_client import OpenRouterClient
+# Use our clean Nebius client instead of Google ADK
+from ..config.nebius_client import NebiusClient
 
 
 class ResearchOrchestrator:
-    """Custom research orchestrator using OpenRouter directly"""
+    """Custom research orchestrator using Nebius AI directly"""
     
     def __init__(self):
-        self.client = OpenRouterClient()
+        self.client = NebiusClient()
     
     def run_parallel_searches(self, topic: str) -> Dict[str, Any]:
         """Run Exa and Tavily searches in parallel"""
@@ -83,8 +83,8 @@ class ResearchOrchestrator:
                 "success": False
             }
     
-    def analyze_with_grok(self, topic: str, search_results: Dict[str, Any]) -> str:
-        """Use Grok-4 to analyze and synthesize the search results"""
+    def analyze_with_nebius(self, topic: str, search_results: Dict[str, Any]) -> str:
+        """Use Nebius AI to analyze and synthesize the search results"""
         
         # Format the search results for analysis
         exa_data = search_results.get("exa_results", {})
@@ -146,9 +146,9 @@ def run_adk_research(topic: str) -> str:
         print(f"🔍 Starting parallel research for: {topic}")
         search_results = orchestrator.run_parallel_searches(topic)
         
-        # Step 2: Analyze results with Grok-4
-        print("🧠 Analyzing results with Grok-4...")
-        final_analysis = orchestrator.analyze_with_grok(topic, search_results)
+        # Step 2: Analyze results with Nebius AI
+        print("🧠 Analyzing results with Nebius AI...")
+        final_analysis = orchestrator.analyze_with_nebius(topic, search_results)
         
         return final_analysis
         
