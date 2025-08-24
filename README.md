@@ -8,7 +8,7 @@ A powerful, conference-agnostic RAG (Retrieval-Augmented Generation) application
 - **⚡ Parallel Processing**: High-performance async crawling with rate limiting and batch processing
 - **🔍 Intelligent Search**: Vector search with automatic fallback to text-based similarity matching
 - **🔬 Real-time Research**: Integrates live web research using Exa and Tavily APIs
-- **🤖 Smart Proposals**: Generates unique talk proposals using Grok-2 and other advanced LLMs
+- **🤖 Smart Proposals**: Generates unique talk proposals using Nebius AI's advanced LLMs
 - **📊 Analytics Dashboard**: Conference statistics, category distributions, and corpus insights
 - **🎯 Multi-Platform**: Streamlit web interface with comprehensive conference management
 
@@ -24,7 +24,7 @@ A powerful, conference-agnostic RAG (Retrieval-Augmented Generation) application
          ▼                       ▼                       ▼
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   Couchbase     │    │   Vector Search  │    │   LLM Generation│
-│   Corpus        │◀───│   & Analytics    │───▶│   (OpenRouter)  │
+│   Corpus        │◀───│   & Analytics    │───▶│   (Nebius AI)   │
 │   Management    │    │                  │    │                 │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
 ```
@@ -35,7 +35,7 @@ A powerful, conference-agnostic RAG (Retrieval-Augmented Generation) application
 
 - Python 3.8+
 - Couchbase Server with Vector Search capabilities
-- API keys for OpenRouter, Exa, and Tavily (see Environment Setup)
+- API keys for Nebius AI, Exa, and Tavily (see Environment Setup)
 
 ### Installation
 
@@ -68,37 +68,30 @@ The Streamlit interface will open at `http://localhost:8501`
 Create a `.env` file with the following configuration:
 
 ```env
-# Couchbase Configuration
-CB_CONNECTION_STRING=couchbase://your-cluster-url
-CB_USERNAME=your-username
-CB_PASSWORD=your-password
+# Nebius AI Configuration (for chat completions and embeddings)
+NEBIUS_API_KEY=your_nebius_api_key_here
+NEBIUS_API_BASE=https://api.studio.nebius.com/v1/
+
+# Research APIs (Optional - for web research functionality)
+EXA_API_KEY=your_exa_api_key_here
+TAVILY_API_KEY=your_tavily_api_key_here
+
+# Couchbase Cloud Configuration
+CB_CONNECTION_STRING=couchbases://your-cluster.cloud.couchbase.com
+CB_USERNAME=your_username
+CB_PASSWORD=your_secure_password
 CB_BUCKET=conferences
-
-# OpenRouter (Primary LLM Provider)
-OPENROUTER_API_KEY=your-openrouter-api-key
-OPENROUTER_API_BASE=https://openrouter.ai/api/v1
-
-# Research APIs
-EXA_API_KEY=your-exa-api-key
-TAVILY_API_KEY=your-tavily-api-key
-
-# Optional: Fallback providers
-OPENAI_API_KEY=your-openai-key
+CB_SEARCH_INDEX=conferences-talks-index
 ```
 
 ### Supported LLM Models
 
-The system supports various models through OpenRouter:
-- **Grok-2** (Primary recommendation)
-- **Claude 3.5 Sonnet**
-- **GPT-4 Turbo**
-- **Llama 3.1 405B**
+The system uses Nebius AI models:
+- **openai/gpt-oss-120b** (Primary chat model for generating talk proposals)
 
 ### Embedding Models
 
-- **intfloat/e5-mistral-7b-instruct** (4096 dimensions)
-- **BAAI/bge-large-en-v1.5** (1024 dimensions)
-- **text-embedding-ada-002** (1536 dimensions)
+- **Qwen/Qwen3-Embedding-8B** (4096 dimensions) - Primary embedding model for vector search
 
 ## 📱 Using the Application
 
@@ -236,7 +229,7 @@ conference-talk-abstract-generator/
 │   └── create_search_indexes.py    # Manual index creation utility
 ├── src/
 │   ├── config/
-│   │   └── openrouter_client.py    # LLM client configuration
+│   │   └── nebius_client.py        # Nebius AI client configuration
 │   ├── scrapers/
 │   │   ├── conference_detector.py  # Platform detection logic
 │   │   ├── platform_adapters.py    # Platform-specific parsers
@@ -270,7 +263,7 @@ conference-talk-abstract-generator/
 
 ### LLM Integration
 
-- **Provider Flexibility**: OpenRouter enables access to multiple LLM providers
+- **Unified AI Platform**: Nebius AI provides both chat completions and embedding generation
 - **Structured Prompts**: Carefully crafted prompts for consistent, high-quality outputs
 - **Context Management**: Intelligent combination of research and historical data
 
@@ -291,7 +284,7 @@ python scripts/create_search_indexes.py create conference_id
 python -c "from src.models.corpus_manager import ConferenceCorpusManager; cm = ConferenceCorpusManager()"
 
 # Verify API keys
-python -c "from src.config.openrouter_client import OpenRouterClient; orc = OpenRouterClient()"
+python -c "from src.config.nebius_client import NebiusClient; nc = NebiusClient()"
 ```
 
 ### Crawling Failures
@@ -343,7 +336,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 For questions and support:
 - Open an issue in the GitHub repository
 - Check the troubleshooting section above
-- Review the Couchbase and OpenRouter documentation
+- Review the Couchbase and Nebius AI documentation
 
 ---
 -->
