@@ -141,12 +141,13 @@ class ConferenceTalkApp:
         with col1:
             conference_url = st.text_input(
                 "Conference Schedule URL:",
-                placeholder="https://kccncna2024.sched.com/ or https://sessionize.com/event-name/",
+                placeholder="e.g. https://ndclondon.com/agenda or https://kccncna2024.sched.com/",
                 help="Enter the main schedule/agenda URL of any conference"
             )
         
         with col2:
             st.markdown("**Supported Platforms:**")
+            st.markdown("• NDC Conferences")
             st.markdown("• Sched.com")
             st.markdown("• Sessionize.com") 
             st.markdown("• Generic sites")
