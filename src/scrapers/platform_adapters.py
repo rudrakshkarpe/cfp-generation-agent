@@ -412,6 +412,357 @@ class SessionizeAdapter(BaseConferenceAdapter):
             'crawled_at': datetime.utcnow().isoformat()
         }
 
+class NDCAdapter(BaseConferenceAdapter):
+    """Adapter for NDC conferences (dynamic support for all NDC sites)"""
+    
+    async def extract_talk_urls(self) -> List[str]:
+        """Extract talk URLs from NDC agenda page"""
+        # Build agenda URL if not already an agenda page
+        if '/agenda' not in self.base_url:
+            agenda_url = f"{self.base_url.rstrip('/')}/agenda"
+        else:
+            agenda_url = self.base_url
+            
+        urls = set()
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(agenda_url, timeout=15) as response:
+                    if response.status != 200:
+                        print(f"Failed to fetch agenda: HTTP {response.status}")
+                        return []
+                    
+                    html = await response.text()
+                    soup = BeautifulSoup(html, 'html.parser')
+                    
+                    # Find all links on the agenda page
+                    for a in soup.find_all('a', href=True):
+                        href = a['href']
+                        # NDC pattern: /agenda/session-name/session-id
+                        # Look for links that start with /agenda/ and have more than just /agenda/
+                        if href.startswith('/agenda/') and href != '/agenda/' and len(href.split('/')) > 2:
+                            # Build full URL
+                            full_url = urljoin(self.base_url, href)
+                            # Get link text for validation
+                            link_text = a.get_text(strip=True)
+                            # Only add if it has meaningful text (likely a talk title)
+                            if link_text and len(link_text) > 5:
+                                urls.add(full_url)
+                    
+                    print(f"Found {len(urls)} talk URLs from NDC agenda")
+                    
+        except Exception as e:
+            print(f"Error extracting NDC talk URLs: {str(e)}")
+            
+        return sorted(list(urls))
+
+    async def parse_talk_page(self, talk_url: str) -> Dict[str, Any]:
+        """Parse NDC talk page with robust extraction"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(talk_url, timeout=15) as response:
+                    if response.status != 200:
+                        print(f"Failed to fetch talk page: HTTP {response.status}")
+                        return self._empty_talk_data(talk_url)
+                    
+                    html = await response.text()
+                    soup = BeautifulSoup(html, 'html.parser')
+                    
+                    # Extract title - try multiple selectors
+                    title = self._extract_title(soup)
+                    
+                    # Extract speaker(s) - look for links to /speakers/
+                    speakers = self._extract_speakers(soup)
+                    
+                    # Extract description - get the longest meaningful paragraph
+                    description = self._extract_description(soup)
+                    
+                    # Extract metadata from page text
+                    page_text = ' '.join(soup.get_text(separator=' ').split())
+                    
+                    # Room extraction (e.g., "Room 1", "Room A")
+                    room = self._extract_room(page_text)
+                    
+                    # Time extraction (e.g., "09:00 - 10:00")
+                    time_window = self._extract_time_window(page_text)
+                    
+                    # Timezone extraction (e.g., "(UTC+02)")
+                    timezone = self._extract_timezone(page_text)
+                    
+                    # Talk type and duration (e.g., "Talk (60 min)" or "Workshop (120 min)")
+                    category, duration = self._extract_type_and_duration(page_text)
+                    
+                    # Weekday extraction
+                    weekday = self._extract_weekday(page_text)
+                    
+                    # Combine time slot information
+                    time_slot_parts = [time_window, timezone, weekday]
+                    time_slot = ' '.join(filter(None, time_slot_parts)).strip() or "Unknown Time"
+                    
+                    return {
+                        'title': title,
+                        'description': description,
+                        'speaker': speakers,
+                        'category': category,
+                        'time_slot': time_slot,
+                        'room': room,
+                        'url': talk_url,
+                        'platform': 'ndc',
+                        'crawled_at': datetime.utcnow().isoformat()
+                    }
+                    
+        except Exception as e:
+            print(f"Error parsing NDC talk {talk_url}: {str(e)}")
+            return self._empty_talk_data(talk_url)
+    
+    def _extract_title(self, soup: BeautifulSoup) -> str:
+        """Extract talk title from various possible locations"""
+        # Try all h1 elements, skip the NDC branding
+        h1_elements = soup.find_all('h1')
+        for h1 in h1_elements:
+            title = h1.get_text(strip=True)
+            # Skip if it's the NDC branding (contains "NDC{")
+            if title and 'NDC{' not in title:
+                return title
+        
+        # Try meta og:title and clean it up
+        meta_title = soup.find('meta', {'property': 'og:title'})
+        if meta_title and meta_title.get('content'):
+            title = meta_title.get('content').strip()
+            # Remove NDC suffix/prefix patterns
+            title = re.sub(r'^NDC\{[^}]+\}\s*[-–]\s*', '', title, flags=re.IGNORECASE)
+            title = re.sub(r'\s*[-–]\s*NDC\{[^}]+\}$', '', title, flags=re.IGNORECASE)
+            title = re.sub(r'\s*[-|]\s*NDC.*$', '', title, flags=re.IGNORECASE)
+            if title and title != 'NDC':
+                return title
+        
+        # Try page title element
+        title_elem = soup.find('title')
+        if title_elem:
+            title = title_elem.get_text(strip=True)
+            # Clean up NDC branding
+            title = re.sub(r'^NDC\{[^}]+\}\s*[-–]\s*', '', title, flags=re.IGNORECASE)
+            title = re.sub(r'\s*[-–]\s*NDC\{[^}]+\}$', '', title, flags=re.IGNORECASE)
+            title = re.sub(r'\s*[-|]\s*NDC.*$', '', title, flags=re.IGNORECASE)
+            title = re.sub(r'^NDC\s+', '', title, flags=re.IGNORECASE)
+            if title and title != 'NDC' and len(title) > 3:
+                return title
+        
+        # Try to find title in specific divs or sections
+        title_selectors = [
+            'h2.talk-title', 'h2.session-title', 'h2.event-title',
+            'div.talk-title', 'div.session-title', 'div.event-title',
+            '.title', '.session-name', '.talk-name'
+        ]
+        for selector in title_selectors:
+            elem = soup.select_one(selector)
+            if elem:
+                title = elem.get_text(strip=True)
+                if title and 'NDC{' not in title:
+                    return title
+        
+        # Fallback: extract from URL if available
+        # URLs often contain the talk title as a slug
+        current_url = soup.find('link', {'rel': 'canonical'})
+        if current_url and current_url.get('href'):
+            url = current_url['href']
+        else:
+            # Try to find URL from meta property
+            meta_url = soup.find('meta', {'property': 'og:url'})
+            if meta_url and meta_url.get('content'):
+                url = meta_url['content']
+            else:
+                url = None
+        
+        if url and '/agenda/' in url:
+            # Extract slug from URL like /agenda/talk-title-here/sessionid
+            match = re.search(r'/agenda/([^/]+)/', url)
+            if match:
+                slug = match.group(1)
+                # Convert slug to title (replace hyphens with spaces, capitalize)
+                title = slug.replace('-', ' ').title()
+                # Remove common words that might be in the slug
+                title = re.sub(r'\b(0[a-z0-9]+)\b', '', title, flags=re.IGNORECASE).strip()
+                if title and len(title) > 3:
+                    return title
+        
+        return "Unknown Title"
+    
+    def _extract_speakers(self, soup: BeautifulSoup) -> str:
+        """Extract speaker names from speaker profile links"""
+        speakers = []
+        
+        # Look for links to speaker profiles
+        for a in soup.find_all('a', href=True):
+            href = a['href']
+            if '/speakers/' in href or '/speaker/' in href:
+                speaker_name = a.get_text(strip=True)
+                if speaker_name and speaker_name not in speakers:
+                    # Filter out non-name text
+                    if len(speaker_name) < 50 and not speaker_name.startswith('http'):
+                        speakers.append(speaker_name)
+        
+        # Fallback: look for speaker class or h3/h4 that might contain speaker name
+        if not speakers:
+            for elem in soup.find_all(['h3', 'h4', 'span'], class_=re.compile(r'speaker', re.I)):
+                text = elem.get_text(strip=True)
+                if text and len(text) < 50:
+                    speakers.append(text)
+                    break
+        
+        return ' & '.join(speakers) if speakers else 'Unknown Speaker'
+    
+    def _extract_description(self, soup: BeautifulSoup) -> str:
+        """Extract the most meaningful description from paragraphs, excluding speaker bios"""
+        
+        # Bio keywords that indicate speaker biography rather than talk description
+        bio_keywords = [
+            'is the developer', 'is a developer', 'is the', 'is a', 'has been', 
+            'worked at', 'works at', 'working at', 'years of experience', 
+            'completed a phd', 'completed his', 'completed her', 'holds a',
+            'is currently', 'was previously', 'has worked', 'she has', 'he has',
+            'is passionate about', 'specializes in', 'focused on', 'expertise',
+            'lead data scientist', 'software engineer', 'program manager',
+            'developer advocate', 'technical lead', 'architect at', 'cto',
+            'founder', 'co-founder', 'director', 'manager', 'consultant'
+        ]
+        
+        # Talk description keywords that indicate actual session content
+        talk_keywords = [
+            'this talk', 'this session', 'we will', 'we\'ll', 'you will',
+            'explore', 'discuss', 'learn', 'discover', 'demonstrate',
+            'in this', 'during this', 'topics include', 'covers',
+            'introduction to', 'deep dive', 'overview of'
+        ]
+        
+        valid_descriptions = []
+        
+        # Get all paragraph texts with filtering
+        for p in soup.find_all('p'):
+            text = p.get_text(strip=True)
+            
+            # Skip very short paragraphs
+            if not text or len(text) < 50:
+                continue
+            
+            # Convert to lowercase for keyword checking
+            text_lower = text.lower()
+            
+            # Check if this looks like a bio
+            is_bio = False
+            
+            # Strong indicator: starts with a name pattern
+            first_sentence = text.split('.')[0] if '.' in text else text
+            if any(keyword in first_sentence.lower() for keyword in ['is the', 'is a', 'has been', 'was previously']):
+                is_bio = True
+            
+            # Check for multiple bio keywords
+            bio_score = sum(1 for keyword in bio_keywords if keyword in text_lower)
+            if bio_score >= 2:  # If 2 or more bio keywords, likely a bio
+                is_bio = True
+            
+            # Skip if identified as bio
+            if is_bio:
+                continue
+            
+            # Prioritize paragraphs with talk keywords
+            talk_score = sum(1 for keyword in talk_keywords if keyword in text_lower)
+            
+            valid_descriptions.append({
+                'text': text,
+                'talk_score': talk_score,
+                'length': len(text)
+            })
+        
+        # Sort by talk_score (descending) then by length
+        if valid_descriptions:
+            valid_descriptions.sort(key=lambda x: (x['talk_score'], x['length']), reverse=True)
+            
+            # Return the best match
+            best_description = valid_descriptions[0]['text']
+            
+            # If best description has no talk keywords, check if it's actually about the talk
+            if valid_descriptions[0]['talk_score'] == 0:
+                # Look for the paragraph that discusses the actual content
+                for desc in valid_descriptions:
+                    if 'hype' in desc['text'].lower() or 'ai' in desc['text'].lower() or 'technology' in desc['text'].lower():
+                        return desc['text']
+            
+            return best_description
+        
+        # Fallback to meta description
+        meta_desc = soup.find('meta', {'property': 'og:description'})
+        if meta_desc and meta_desc.get('content'):
+            content = meta_desc.get('content').strip()
+            # Check if meta description is not a bio
+            if not any(keyword in content.lower() for keyword in bio_keywords[:10]):
+                return content
+        
+        return "No description available"
+    
+    def _extract_room(self, text: str) -> str:
+        """Extract room information from page text"""
+        room_match = re.search(r'\bRoom\s+[A-Za-z0-9]+\b', text, re.IGNORECASE)
+        if room_match:
+            return room_match.group(0)
+        
+        # Alternative patterns
+        hall_match = re.search(r'\bHall\s+[A-Za-z0-9]+\b', text, re.IGNORECASE)
+        if hall_match:
+            return hall_match.group(0)
+        
+        return "Unknown Room"
+    
+    def _extract_time_window(self, text: str) -> str:
+        """Extract time window (e.g., 09:00 - 10:00)"""
+        time_match = re.search(r'\b\d{1,2}:\d{2}\s*[-–]\s*\d{1,2}:\d{2}\b', text)
+        if time_match:
+            return time_match.group(0).replace('–', '-')
+        return ""
+    
+    def _extract_timezone(self, text: str) -> str:
+        """Extract timezone information"""
+        tz_match = re.search(r'\(UTC[^\)]+\)', text)
+        if tz_match:
+            return tz_match.group(0)
+        return ""
+    
+    def _extract_type_and_duration(self, text: str) -> tuple:
+        """Extract talk type and duration"""
+        # Look for patterns like "Talk (60 min)" or "Workshop (120 min)"
+        type_match = re.search(r'\b(Talk|Workshop|Keynote|Panel|Lightning Talk)\s*\((\d+)\s*min\)', text, re.IGNORECASE)
+        if type_match:
+            return type_match.group(1).title(), f"{type_match.group(2)} min"
+        
+        # Just type without duration
+        type_only = re.search(r'\b(Talk|Workshop|Keynote|Panel|Lightning Talk)\b', text, re.IGNORECASE)
+        if type_only:
+            return type_only.group(1).title(), ""
+        
+        return "Talk", ""
+    
+    def _extract_weekday(self, text: str) -> str:
+        """Extract weekday from page text"""
+        days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        for day in days:
+            if re.search(r'\b' + day + r'\b', text, re.IGNORECASE):
+                return day
+        return ""
+    
+    def _empty_talk_data(self, url: str) -> Dict[str, Any]:
+        """Return empty talk data structure for failed parsing"""
+        return {
+            'title': 'Failed to Parse',
+            'description': 'Error occurred while parsing this talk',
+            'speaker': 'Unknown',
+            'category': 'Error',
+            'time_slot': 'Unknown',
+            'room': 'Unknown',
+            'url': url,
+            'platform': 'ndc',
+            'crawled_at': datetime.utcnow().isoformat()
+        }
+
+
 class GenericAdapter(BaseConferenceAdapter):
     """Generic adapter for unknown platforms using heuristic parsing"""
     
@@ -436,6 +787,16 @@ class GenericAdapter(BaseConferenceAdapter):
         
         soup = BeautifulSoup(html, 'html.parser')
         potential_urls = set()
+        
+        # Special handling for NDC domains to avoid wrong links
+        parsed = urlparse(self.base_url)
+        if parsed.netloc.endswith('ndccopenhagen.com'):
+            # Use NDC-specific link pattern
+            for a in soup.find_all('a', href=True):
+                href = a['href']
+                if NDCAdapter.AGENDA_DETAIL_RE.search(href):
+                    potential_urls.add(urljoin(self.base_url, href))
+            return list(potential_urls)
         
         # Keywords that suggest talk/session content
         talk_keywords = [
@@ -591,6 +952,7 @@ def get_platform_adapter(platform: str, base_url: str) -> BaseConferenceAdapter:
     adapters = {
         'sched': SchedAdapter,
         'sessionize': SessionizeAdapter,
+        'ndc': NDCAdapter,
         'generic': GenericAdapter
     }
     
