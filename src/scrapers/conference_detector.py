@@ -24,6 +24,15 @@ class ConferenceDetector:
             'domains': ['whova.com'],
             'url_patterns': ['/agenda/', '/session/'],
             'html_signatures': ['whova-agenda', 'session-detail']
+        },
+        'ndc': {
+            'domains': [
+                'ndccopenhagen.com', 'ndclondon.com', 'ndcoslo.com', 
+                'ndcsydney.com', 'ndcminnesota.com', 'ndcmelbourne.com',
+                'ndcporto.com', 'ndcsecurity.com', 'ndctech.com'
+            ],
+            'url_patterns': ['/agenda'],
+            'html_signatures': ['NDC {', 'Agenda - NDC', 'ndc-agenda', 'talk-detail', 'speaker-detail']
         }
     }
     

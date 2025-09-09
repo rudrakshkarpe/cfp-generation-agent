@@ -7,6 +7,7 @@ from .platform_adapters import (
     BaseConferenceAdapter,
     SchedAdapter,
     SessionizeAdapter,
+    NDCAdapter,
     GenericAdapter,
     get_platform_adapter
 )
@@ -16,7 +17,8 @@ __all__ = [
     'ConferenceDetector',
     'BaseConferenceAdapter',
     'SchedAdapter',
-    'SessionizeAdapter', 
+    'SessionizeAdapter',
+    'NDCAdapter',
     'GenericAdapter',
     'get_platform_adapter',
     'ParallelConferenceCrawler',

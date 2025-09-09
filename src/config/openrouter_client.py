@@ -22,7 +22,7 @@ class OpenRouterClient:
             api_key=os.getenv("TOGETHER_API_KEY")
         )
         
-        self.chat_model = os.getenv("GROK_MODEL", "x-ai/grok-4:online")
+        self.chat_model = os.getenv("GROK_MODEL", "x-ai/grok-3:online")
         self.embedding_model = os.getenv("EMBEDDING_MODEL", "BAAI/bge-large-en-v1.5")
     
     def generate_embedding(self, text: str) -> List[float]:
