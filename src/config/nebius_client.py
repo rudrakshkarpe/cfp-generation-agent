@@ -1,5 +1,5 @@
 """
-Clean Nebius AI client for both chat completions and embeddings
+Hybrid client: Nebius AI for embeddings, OpenRouter (Grok-4) for chat completions
 """
 import os
 from openai import OpenAI
@@ -10,21 +10,27 @@ load_dotenv()
 
 class NebiusClient:
     def __init__(self):
-        # Single Nebius client for both chat and embeddings
-        self.client = OpenAI(
+        # Nebius client for embeddings
+        self.nebius_client = OpenAI(
             base_url="https://api.studio.nebius.com/v1/",
             api_key=os.getenv("NEBIUS_API_KEY")
         )
         
+        # OpenRouter client for chat completions (Grok-4)
+        self.openrouter_client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=os.getenv("OPENROUTER_API_KEY")
+        )
+        
         # Model configurations
-        self.chat_model = "openai/gpt-oss-120b"
-        self.embedding_model = "Qwen/Qwen3-Embedding-8B"
+        self.chat_model = "x-ai/grok-3"  # Grok-4 model via OpenRouter
+        self.embedding_model = "Qwen/Qwen3-Embedding-8B"  # Keep Nebius embeddings
         self.embedding_dimensions = 4096
     
     def generate_embedding(self, text: str) -> List[float]:
         """Generate embedding using Nebius AI"""
         try:
-            response = self.client.embeddings.create(
+            response = self.nebius_client.embeddings.create(
                 model=self.embedding_model,
                 input=text
             )
@@ -34,9 +40,9 @@ class NebiusClient:
             raise
     
     def chat_completion(self, messages: List[Dict], temperature: float = 0.7, max_tokens: int = 2048) -> str:
-        """Generate chat completion using Nebius AI"""
+        """Generate chat completion using Grok-4 via OpenRouter"""
         try:
-            response = self.client.chat.completions.create(
+            response = self.openrouter_client.chat.completions.create(
                 model=self.chat_model,
                 messages=messages,
                 temperature=temperature,
@@ -49,9 +55,9 @@ class NebiusClient:
             raise
     
     def batch_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """Generate embeddings for multiple texts"""
+        """Generate embeddings for multiple texts using Nebius AI"""
         try:
-            response = self.client.embeddings.create(
+            response = self.nebius_client.embeddings.create(
                 model=self.embedding_model,
                 input=texts
             )
